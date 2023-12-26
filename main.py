@@ -1,11 +1,13 @@
-from testObject import Test, PASS, FAIL
 from PyQt6.QtCore import Qt, QProcess
 from PyQt6.QtWidgets import *
-from constants import *
 import PyQt6.uic as uic
 import subprocess
 import sys
+from object.testObject import Test
+from constants.constants import *
+import pkgutil
 import os
+from datetime import datetime
 
 class Main(QMainWindow):
     def __init__(self):
@@ -46,25 +48,27 @@ class Main(QMainWindow):
     """
 
     def import_tests(self):
-        file_filter = TXT_FILTER
+        file_filter = IMP_FILTER
         filename = QFileDialog.getOpenFileName(
             parent=self,
             caption=SELECT_FILE_CAPTION,
             directory=os.getcwd(),
             filter=file_filter,
         )[0]
+        if (not filename):
+            return
         tests = self.get_tests(filename)
         table_widget = self.test_table
-        table_widget.setRowCount(len(tests))
-        current_row = 0
-        if tests:
+        if (tests):
+            table_widget.setRowCount(len(tests))
+            current_row = 0
             self.tests.clear()
             for test in tests:
                 self.tests.append(test)
                 table_widget.setItem(
                     current_row,
                     0,
-                    QTableWidgetItem(test.case_id + " " + test.test_name),
+                    QTableWidgetItem(test.case_id + SPACE + test.test_name),
                 )
                 table_widget.setItem(current_row, 1, QTableWidgetItem())
                 table_widget.item(current_row, 0).setCheckState(Qt.CheckState.Unchecked)
@@ -79,7 +83,7 @@ class Main(QMainWindow):
     def update_selected(self):
         selected = 0
         for i in range(self.test_table.rowCount()):
-            if self.test_table.item(i, 0).checkState() == Qt.CheckState.Checked:
+            if (self.test_table.item(i, 0).checkState() == Qt.CheckState.Checked):
                 selected += 1
         self.selected_count_label.setText(f"{selected} test(s) selected")
 
@@ -114,7 +118,7 @@ class Main(QMainWindow):
     def show_selected(self):
         for i in range(len(self.tests)):
             item = self.test_table.item(i, 0)
-            if item.checkState() == Qt.CheckState.Checked:
+            if (item.checkState() == Qt.CheckState.Checked):
                 self.test_table.setRowHidden(i, False)
             else:
                 self.test_table.setRowHidden(i, True)
@@ -126,7 +130,7 @@ class Main(QMainWindow):
     def show_unselected(self):
         for i in range(len(self.tests)):
             item = self.test_table.item(i, 0)
-            if item.checkState() == Qt.CheckState.Unchecked:
+            if (item.checkState() == Qt.CheckState.Unchecked):
                 self.test_table.setRowHidden(i, False)
             else:
                 self.test_table.setRowHidden(i, True)
@@ -140,20 +144,21 @@ class Main(QMainWindow):
         selected_tests = list()
         self.passed_count = 0
         self.failed_count = 0
-        if self.tests:
+        if (self.tests):
             for i in range(len(self.tests)):
-                if self.test_table.item(i, 0).checkState() == Qt.CheckState.Checked:
+                if (self.test_table.item(i, 0).checkState() == Qt.CheckState.Checked):
                     selected_tests.append({"test": self.tests[i], "index": i})
-            self.start_process(selected_tests)
+            if (selected_tests):
+                self.start_process(selected_tests)
 
     """
     Start a process to execute a test case
     """
 
     def start_process(self, selected_tests):
-        if self.process is None:
+        if (self.process is None):
             self.process = QProcess()
-            self.process_status = False
+            self.testcase_status = False
             test_info = selected_tests.pop(0)
             test = test_info["test"]
             index = test_info["index"]
@@ -184,8 +189,8 @@ class Main(QMainWindow):
         data = self.process.readAllStandardOutput()
         stdout = bytes(data).decode(UTF8)
         self.message(stdout)
-        if PASS in stdout:
-            self.process_status = True
+        if (PASS in stdout):
+            self.testcase_status = True
 
     """
     State processing
@@ -208,7 +213,7 @@ class Main(QMainWindow):
         data = self.process.readAllStandardError()
         stderr = bytes(data).decode(UTF8)
         self.message(stderr)
-        self.process_status = False
+        self.testcase_status = False
 
     """
     Check if more tests need to be ran and update result
@@ -218,15 +223,16 @@ class Main(QMainWindow):
         print("Process finished.")
         self.message(SEPERATOR)
         self.process = None
-        self.set_result(index, self.process_status)
-        if self.process_status:
+        self.set_result(index, self.testcase_status)
+        if (self.testcase_status):
             self.passed_count += 1
         else:
             self.failed_count += 1
         self.passed_label.setText(f"Passed: {self.passed_count}")
         self.failed_label.setText(f"Failed: {self.failed_count}")
-        self.process_status = False
-        if selected_tests:
+        self.testcase_status = False
+
+        if (selected_tests):
             self.start_process(selected_tests)
         else:
             self.message(END_SEPERATOR)
@@ -241,7 +247,7 @@ class Main(QMainWindow):
         result_text = FAIL
         bg_color = Qt.GlobalColor.red
         text_color = Qt.GlobalColor.white
-        if result:
+        if (result):
             result_text = PASS
             bg_color = Qt.GlobalColor.green
             text_color = Qt.GlobalColor.black
@@ -257,8 +263,8 @@ class Main(QMainWindow):
         for i in range(self.test_table.rowCount()):
             self.test_table.item(i, 1).setBackground(Qt.GlobalColor.transparent)
             self.test_table.item(i, 1).setText("")
-        self.passed_label.setText(f"Passed:")
-        self.failed_label.setText(f"Failed:")
+        self.passed_label.setText("Passed:")
+        self.failed_label.setText("Failed:")
         self.result_text_browser.clear()
 
     """
@@ -266,15 +272,13 @@ class Main(QMainWindow):
     """
 
     def export_result(self):
-        if len(self.result_text_browser.toPlainText()) < 1:
+        if (len(self.result_text_browser.toPlainText())) < 1:
             return
-        filename = QFileDialog.getSaveFileName(
-            parent=self,
-            caption=SAVE_FILE_CAPTION,
-            filter=LOG_FILTER,
-            directory=os.getcwd(),
-        )[0]
-        with open(filename, "w") as f:
+        timestamp = datetime.now().timestamp()
+        date_time = datetime.fromtimestamp(timestamp)
+        str_date_time = date_time.strftime("%d-%m-%Y, %H:%M:%S")
+
+        with open(f"./log/result-{str_date_time}", "w") as f:
             f.write(self.result_text_browser.toPlainText())
 
     """
@@ -282,51 +286,91 @@ class Main(QMainWindow):
     """
 
     def get_tests(self, filename):
-        modules = list()
-        if filename:
+        if (filename):
             tests = list()
+            case_ids = list()
             file = open(filename, "r")
             lines = file.readlines()
             read_program = False
+
+            imports = self.init_modules(lines)
+            print(imports)
+            if (not imports):
+                return None
+            
             case_id = ""
             case_name = ""
-            program = SYS_IMP
+            program = ""
+            start_count = 0
+            end_count = 0
             for line in lines:
-                if CASE_ID in line:
-                    case_id = line.split("=")[1].strip().replace("\n", "")
+                if (CASE_ID in line):
+                    case_id = line.split(EQUAL)[1].strip().replace(NEXT_LINE, "")
+                    case_ids.append(case_id)
+                    if (len(case_ids) != len(set(case_ids))):
+                        self.warning_gui(FORMAT_ERR)
+                        print("Case ID not unique")
+                        return None
 
-                elif CASE_NAME in line:
+                elif (CASE_NAME in line):
                     if case_id:
-                        case_name = line.split("=")[1].strip().replace("\n", "")
+                        case_name = line.split(EQUAL)[1].strip().replace(NEXT_LINE, "")
                     else:
+                        self.warning_gui(FORMAT_ERR)
                         print("Missing CaseID")
+                        return None
 
-                elif START in line and len(line) == len(START + NEXT_LINE):
-                    if case_id and case_name:
+                elif (START in line):
+                    if (case_id and case_name):
                         read_program = True
+                        program += imports
+                        start_count += 1
                     else:
+                        self.warning_gui(FORMAT_ERR)
                         print("Missing CaseID or Missing CaseName")
+                        return None
 
-                elif END in line and len(line) == len(END + NEXT_LINE):
+                elif (END in line):
+                    if (not read_program):
+                        self.warning_gui(FORMAT_ERR)
+                        print("Exrta end")
+                        return None
                     tests.append(Test(case_id, case_name, program))
                     read_program = False
                     case_id = ""
                     case_name = ""
-                    program = SYS_IMP
-                elif read_program:
-                    if IMPORT in line:
-                        module = line.split(" ")[1].split(".")[0].replace("\n", "")
-                        modules.append(module)
+                    program = ""
+                    end_count += 1
 
-                    if PRINT in line:
+                if (read_program):
+                    if (PRINT in line):
                         spaces = len(line) - len(line.lstrip())
-                        line += " " * spaces + FLUSH
+                        line += SPACE * spaces + FLUSH
 
                     program += line
-            modules = list(dict.fromkeys(modules))
-            self.find_modules(modules)
+            file.close()
+            if (start_count != end_count):
+                self.warning_gui(FORMAT_ERR)
             return tests
         return None
+
+    '''
+    Set up environment for test cases
+    '''
+    def init_modules(self, lines):
+        import_lines = [SYS_IMP] + list(filter(lambda line : IMPORT in line, lines))
+        modules = list()
+        for line in import_lines:
+            module = line.split(SPACE)[1].replace(NEXT_LINE, "")
+            modules.append(module)
+        
+        if (self.find_modules(modules)):
+            with open(MODULES_PY, "w") as f:
+                for line in import_lines:
+                    f.write(f"{line}")
+            return MODULES_IMP
+        return None
+
 
     """
     Check whether the testing evironment has modules required by the tests
@@ -334,11 +378,35 @@ class Main(QMainWindow):
 
     def find_modules(self, modules):
         self.missing_modules = list()
+
+        module_found = False
+        print(modules)
         for module in modules:
-            if module not in sys.modules:
+            try:
+                loader = pkgutil.find_loader(module)
+                if (not loader):
+                    self.missing_modules.append(module)
+                else: module_found = True
+            except:
                 self.missing_modules.append(module)
-        if len(self.missing_modules) > 0:
-            self.warning_gui()
+
+            try:
+                loader = pkgutil.find_loader(ENV + module)
+
+                if (not loader and not module_found):
+                    self.missing_modules.append(module)
+                elif (loader):
+                    self.missing_modules.pop()
+            except:
+                pass
+
+            module_found = False
+
+        print(self.missing_modules)
+        if (len(self.missing_modules) > 0):
+            self.warning_gui(MODULE_ERR)
+            return False
+        return True
 
     """
     Install a module with name
@@ -348,15 +416,21 @@ class Main(QMainWindow):
         subprocess.check_call([PIP, INSTALL, module])
         print(f"{module} has been installed")
 
-    def warning_gui(self):
+    '''
+    Warning GUI
+    '''
+    def warning_gui(self, err):
         msg = QMessageBox(self)
         msg.setIcon(QMessageBox.Icon.Warning)
-        msg.setText("WARNING")
-        msg.setInformativeText("Missing one or more modules")
-        msg.setWindowTitle("Something is wrong")
-        msg.setDetailedText(", ".join(self.missing_modules))
+        msg.setText(err["text"])
+        msg.setInformativeText(err["informative_text"])
+        if (len(self.missing_modules) > 0):
+            msg.setDetailedText("Please install the following module(s) or fix import path:\n" + ", ".join(self.missing_modules))
+            self.missing_modules.clear()
+        else:
+            msg.setDetailedText(err["detailed_text"])
+        
         msg.exec()
-
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

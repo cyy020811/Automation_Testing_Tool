@@ -1,10 +1,4 @@
-import random
-from io import StringIO
-from contextlib import redirect_stdout
-import sys
-import time
-import subprocess
-from constants import *
+from constants.constants import *
 
 class Test:
     def __init__(self, case_id, test_name, test):
@@ -17,6 +11,5 @@ class Test:
     """
 
     def build_test(self):
-        log = f"CaseID: {self.case_id}\nCaseName: {self.test_name}\n"
         with open(TEST_CASE_PY, "w") as testCase:
             testCase.writelines(self.test)
